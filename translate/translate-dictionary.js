@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         划词翻译：多词典查询
 // @namespace    http://tampermonkey.net/
-// @version      10.19
+// @version      10.20
 // @description  划词翻译调用“有道词典（有道翻译）、金山词霸、Bing 词典（必应词典）、剑桥高阶、沪江小D、谷歌翻译”
 // @author       https://github.com/barrer
 // @license      https://www.apache.org/licenses/LICENSE-2.0
@@ -11,7 +11,6 @@
 // @connect      youdao.com
 // @connect      iciba.com
 // @connect      translate-pa.googleapis.com
-// @connect      hjenglish.com
 // @connect      bing.com
 // @connect      cambridge.org
 // @grant        GM_xmlhttpRequest
@@ -41,7 +40,6 @@
     // @connect      youdao.com                    有道词典
     // @connect      iciba.com                     金山词霸
     // @connect      translate-pa.googleapis.com   谷歌翻译
-    // @connect      hjenglish.com                 沪江小D
     // @connect      bing.com                      必应词典
     // @connect      cambridge.org                 剑桥高阶
     // 注意：自定义变量修改后把 “@version” 版本号改为 “10000” 防止自动更新
@@ -88,16 +86,6 @@
     .youdao .trs>.tr>.l{display:block}
     .youdao [class="#text"]{font-style:italic}
     .youdao [class="@action"],.none{display:none}
-    .hjenglish dl,.hjenglish dt,.hjenglish dd,.hjenglish p,.hjenglish ul,.hjenglish li,.hjenglish h3{margin:0;padding:0;margin-block-start:0;margin-block-end:0;margin-inline-start:0;margin-inline-end:0}
-    .hjenglish h3{font-size:1em;font-weight:normal}
-    .hjenglish .detail-pron,.hjenglish .pronounces{color:#808080}
-    .hjenglish .def-sentence-from,.hjenglish .def-sentence-to{display:none}
-    .hjenglish .detail-groups dd h3:before{counter-increment:eq;content:counter(eq) ".";display:inline}
-    .hjenglish .detail-groups dd h3 p{display:inline}
-    .hjenglish .detail-groups dd:first-of-type:last-of-type h3:before{content:""}
-    .hjenglish .detail-groups dl{counter-reset:eq;margin-bottom:.5em;clear:both}
-    .hjenglish ol,.hjenglish ul{list-style:none}
-    .hjenglish dd>p{display:none}
     .bing h1,.bing strong,.bing td{font-size:1em;font-weight:normal;margin:0;padding:0}
     .bing .concise ul{list-style:none;margin:0;padding:0}
     .bing .hd_tf{margin-right:1em}
@@ -166,15 +154,14 @@
         YOUDAO: 'youdao',
         YOUDAO_LOWER_CASE: 'youdaoLowerCase',
         BING: 'bing',
-        HJENGLISH: 'hjenglish',
         GOOGLE: 'google',
         CAMBRIDGE: 'cambridge'
     };
     // 唯一 ID 扩展
     const idsExtension = {
         // ID 组
-        LIST_DICT: [ids.ICIBA, ids.YOUDAO, ids.BING, ids.HJENGLISH, ids.CAMBRIDGE],
-        LIST_DICT_LOWER_CASE: [ids.ICIBA, ids.ICIBA_LOWER_CASE, ids.YOUDAO, ids.YOUDAO_LOWER_CASE, ids.BING, ids.HJENGLISH, ids.CAMBRIDGE],
+        LIST_DICT: [ids.ICIBA, ids.YOUDAO, ids.BING, ids.CAMBRIDGE],
+        LIST_DICT_LOWER_CASE: [ids.ICIBA, ids.ICIBA_LOWER_CASE, ids.YOUDAO, ids.YOUDAO_LOWER_CASE, ids.BING, ids.CAMBRIDGE],
         LIST_GOOGLE: [ids.GOOGLE],
         // 去重比对（大小写翻译可能一样）
         lowerCaseMap: (() => {
@@ -191,7 +178,6 @@
             obj[ids.YOUDAO] = '有道词典';
             obj[ids.YOUDAO_LOWER_CASE] = '';
             obj[ids.BING] = 'Bing 词典';
-            obj[ids.HJENGLISH] = '沪江小D';
             obj[ids.GOOGLE] = '谷歌翻译';
             obj[ids.CAMBRIDGE] = '剑桥高阶';
             return obj;
@@ -204,7 +190,6 @@
             obj[ids.YOUDAO] = 'https://dict.youdao.com/w/eng/%q%';
             obj[ids.YOUDAO_LOWER_CASE] = '';
             obj[ids.BING] = 'https://cn.bing.com/dict/search?q=%q%';
-            obj[ids.HJENGLISH] = 'https://dict.hjenglish.com/w/%q%';
             obj[ids.GOOGLE] = text => {
                 let rst = '';
                 if (hasChineseByRange(text)) {
@@ -266,20 +251,6 @@
                 }, {
                     headers: {
                         'Accept-Language': 'zh-CN,zh;q=0.9'
-                    }
-                });
-            };
-            obj[ids.HJENGLISH] = (text, time) => {
-                ajax(`https://dict.hjenglish.com/w/${encodeURIComponent(text)}`, rst => {
-                    putEngineResult(ids.HJENGLISH, parseHjenglish(rst), time);
-                    showContent();
-                }, rst => {
-                    putEngineResult(ids.HJENGLISH, htmlToDom('error: 无法连接翻译服务'), time);
-                    showContent();
-                }, {
-                    headers: {
-                        'Cookie': `HJ_SID=${uuid()}; HJ_SSID_3=${uuid()}; HJ_CST=1; HJ_CSST_3=1; HJ_UID=${uuid()}`,
-                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Safari/605.1.15'
                     }
                 });
             };
@@ -1118,38 +1089,6 @@
                 iterElementRemove(ky);
                 mean.innerHTML = mean.innerHTML.replace(/<li><\/li>/g, '');// GNU、MODE
                 dom.appendChild(mean);
-            }
-        } catch (error) {
-            log(error);
-            dom.appendChild(htmlToDom(error));
-        }
-        return dom;
-    }
-    /**沪江小D排版*/
-    function parseHjenglish(rst) {
-        let dom = document.createElement('div');
-        dom.setAttribute('class', ids.HJENGLISH);
-        try {
-            rst = cleanHtml(rst);
-            let doc = htmlToDom(rst);
-            let label = doc.querySelector('.word-details-item-content header');
-            let entry = doc.querySelector('.word-text h2');
-            let collins = doc.querySelector('div[data-id="detail"] .word-details-item-content .detail-groups');
-            if (entry) {
-                let entryDom = document.createElement('div');
-                entryDom.setAttribute('class', 'entry');
-                entryDom.innerHTML = entry.innerHTML;
-                dom.appendChild(entryDom);
-                if (collins) {
-                    if (label) {
-                        let regex = /(《.*?》)/ig;
-                        let match = regex.exec(label.innerHTML);
-                        if (match && match[1]) {
-                            dom.appendChild(htmlToDom(`<div>${match[1]}</div>`));
-                        }
-                    }
-                    dom.appendChild(collins);
-                }
             }
         } catch (error) {
             log(error);
